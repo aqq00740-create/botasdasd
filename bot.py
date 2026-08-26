@@ -42,15 +42,12 @@ except ValueError:
 # ============================================================
 
 intents = discord.Intents.default()
-
 intents.members = True
 intents.message_content = True
 
 
 # ============================================================
 # TEMPORARY DATA
-# No database.
-# Data resets when Railway restarts the bot.
 # ============================================================
 
 guild_data = defaultdict(lambda: {
@@ -93,17 +90,11 @@ user_data = defaultdict(lambda: {
 })
 
 cases = defaultdict(list)
-
 reminders = {}
-
 giveaways = {}
-
 tickets = {}
-
 temp_voice_channels = set()
-
 message_tracker = defaultdict(deque)
-
 join_tracker = defaultdict(deque)
 
 
@@ -216,8 +207,6 @@ async def create_case(
 
 # ============================================================
 # HELP MENU
-# IMPORTANT:
-# timeout=None + custom_id = persistent buttons
 # ============================================================
 
 def help_home_embed():
@@ -292,9 +281,9 @@ class HelpView(discord.ui.View):
             color=discord.Color.orange()
         )
 
-        await interaction.response.edit_message(
-            embed=embed,
-            view=HelpBackView()
+        await safe_help_edit(
+            interaction,
+            embed
         )
 
     @discord.ui.button(
@@ -321,9 +310,9 @@ class HelpView(discord.ui.View):
             color=discord.Color.red()
         )
 
-        await interaction.response.edit_message(
-            embed=embed,
-            view=HelpBackView()
+        await safe_help_edit(
+            interaction,
+            embed
         )
 
     @discord.ui.button(
@@ -352,9 +341,9 @@ class HelpView(discord.ui.View):
             color=discord.Color.green()
         )
 
-        await interaction.response.edit_message(
-            embed=embed,
-            view=HelpBackView()
+        await safe_help_edit(
+            interaction,
+            embed
         )
 
     @discord.ui.button(
@@ -383,9 +372,9 @@ class HelpView(discord.ui.View):
             color=discord.Color.blurple()
         )
 
-        await interaction.response.edit_message(
-            embed=embed,
-            view=HelpBackView()
+        await safe_help_edit(
+            interaction,
+            embed
         )
 
     @discord.ui.button(
@@ -425,9 +414,49 @@ class HelpView(discord.ui.View):
             color=discord.Color.gold()
         )
 
-        await interaction.response.edit_message(
-            embed=embed,
-            view=HelpBackView()
+        await safe_help_edit(
+            interaction,
+            embed
+        )
+
+
+async def safe_help_edit(
+    interaction: discord.Interaction,
+    embed: discord.Embed
+):
+    """
+    Safely edit a Help menu interaction.
+
+    This also prevents a second response from causing
+    InteractionResponded errors.
+    """
+
+    try:
+
+        if interaction.response.is_done():
+
+            await interaction.edit_original_response(
+                embed=embed,
+                view=HelpBackView()
+            )
+
+        else:
+
+            await interaction.response.edit_message(
+                embed=embed,
+                view=HelpBackView()
+            )
+
+    except discord.NotFound:
+
+        print(
+            "[HELP] Interaction expired or no longer exists."
+        )
+
+    except discord.HTTPException as error:
+
+        print(
+            f"[HELP] Failed to edit help message: {error}"
         )
 
 
@@ -440,7 +469,9 @@ class HelpBackView(discord.ui.View):
 
     @discord.ui.button(
         label="Back",
-        emoji="←",
+        # FIXED:
+        # "←" was being rejected by Discord.
+        emoji="↩️",
         style=discord.ButtonStyle.secondary,
         custom_id="nbj:help_back"
     )
@@ -450,10 +481,33 @@ class HelpBackView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        await interaction.response.edit_message(
-            embed=help_home_embed(),
-            view=HelpView()
-        )
+        try:
+
+            if interaction.response.is_done():
+
+                await interaction.edit_original_response(
+                    embed=help_home_embed(),
+                    view=HelpView()
+                )
+
+            else:
+
+                await interaction.response.edit_message(
+                    embed=help_home_embed(),
+                    view=HelpView()
+                )
+
+        except discord.NotFound:
+
+            print(
+                "[HELP] Back interaction expired."
+            )
+
+        except discord.HTTPException as error:
+
+            print(
+                f"[HELP] Back button error: {error}"
+            )
 
 
 # ============================================================
@@ -476,30 +530,21 @@ class NormalBotJunior(commands.Bot):
 
         print("Registering persistent views...")
 
-        # Ticket buttons
         self.add_view(TicketPanelView())
         self.add_view(TicketCloseView())
-
-        # Verification button
         self.add_view(VerificationView())
-
-        # Giveaway button
         self.add_view(GiveawayView())
-
-        # Help menu buttons
         self.add_view(HelpView())
         self.add_view(HelpBackView())
 
         print("Persistent views registered.")
 
-        # Sync slash commands
         synced = await self.tree.sync()
 
         print(
             f"Synced {len(synced)} slash commands."
         )
 
-        # Start background tasks once
         if not self.started_tasks:
 
             self.reminder_loop.start()
@@ -540,6 +585,7 @@ class NormalBotJunior(commands.Bot):
             expired.append(reminder_id)
 
         for reminder_id in expired:
+
             reminders.pop(
                 reminder_id,
                 None
@@ -551,27 +597,27 @@ class NormalBotJunior(commands.Bot):
         now = time.time()
         finished = []
 
-        for message_id, giveaway in list(
+        for message_id, giveaway_data in list(
             giveaways.items()
         ):
 
-            if now < giveaway["end"]:
+            if now < giveaway_data["end"]:
                 continue
 
             channel = self.get_channel(
-                giveaway["channel_id"]
+                giveaway_data["channel_id"]
             )
 
             if channel:
 
                 entries = list(
-                    giveaway["entries"]
+                    giveaway_data["entries"]
                 )
 
                 if entries:
 
                     count = min(
-                        giveaway["winners"],
+                        giveaway_data["winners"],
                         len(entries)
                     )
 
@@ -585,19 +631,29 @@ class NormalBotJunior(commands.Bot):
                         for user_id in winners
                     )
 
-                    await channel.send(
-                        f"🎉 **Giveaway ended!**\n"
-                        f"Prize: **{giveaway['prize']}**\n"
-                        f"Winner(s): {mentions}"
-                    )
+                    try:
+
+                        await channel.send(
+                            f"🎉 **Giveaway ended!**\n"
+                            f"Prize: **{giveaway_data['prize']}**\n"
+                            f"Winner(s): {mentions}"
+                        )
+
+                    except discord.HTTPException:
+                        pass
 
                 else:
 
-                    await channel.send(
-                        f"🎉 Giveaway for "
-                        f"**{giveaway['prize']}** "
-                        f"ended with no entries."
-                    )
+                    try:
+
+                        await channel.send(
+                            f"🎉 Giveaway for "
+                            f"**{giveaway_data['prize']}** "
+                            f"ended with no entries."
+                        )
+
+                    except discord.HTTPException:
+                        pass
 
             finished.append(message_id)
 
@@ -641,10 +697,6 @@ async def on_member_join(member):
     guild = member.guild
     settings = config(guild.id)
 
-    # -----------------------------
-    # Anti-raid
-    # -----------------------------
-
     now = time.time()
 
     joins = join_tracker[guild.id]
@@ -663,17 +715,11 @@ async def on_member_join(member):
             f"within 30 seconds."
         )
 
-    # -----------------------------
-    # Autorole
-    # -----------------------------
-
     role_id = settings["autorole"]
 
     if role_id:
 
-        role = guild.get_role(
-            role_id
-        )
+        role = guild.get_role(role_id)
 
         if role:
 
@@ -687,23 +733,15 @@ async def on_member_join(member):
             except discord.HTTPException:
                 pass
 
-    # -----------------------------
-    # Welcome
-    # -----------------------------
-
     channel_id = settings["welcome_channel"]
 
     if channel_id:
 
-        channel = guild.get_channel(
-            channel_id
-        )
+        channel = guild.get_channel(channel_id)
 
         if channel:
 
-            message = settings[
-                "welcome_message"
-            ]
+            message = settings["welcome_message"]
 
             message = message.replace(
                 "{user}",
@@ -726,11 +764,7 @@ async def on_member_join(member):
             )
 
             try:
-
-                await channel.send(
-                    message
-                )
-
+                await channel.send(message)
             except discord.HTTPException:
                 pass
 
@@ -754,15 +788,11 @@ async def on_member_remove(member):
 
     if channel_id:
 
-        channel = guild.get_channel(
-            channel_id
-        )
+        channel = guild.get_channel(channel_id)
 
         if channel:
 
-            message = settings[
-                "goodbye_message"
-            ]
+            message = settings["goodbye_message"]
 
             message = message.replace(
                 "{username}",
@@ -775,11 +805,7 @@ async def on_member_remove(member):
             )
 
             try:
-
-                await channel.send(
-                    message
-                )
-
+                await channel.send(message)
             except discord.HTTPException:
                 pass
 
@@ -806,10 +832,6 @@ async def on_message(message):
     member = message.author
     settings = config(guild.id)
 
-    # -----------------------------
-    # Anti invite
-    # -----------------------------
-
     if settings["antilink"] and not is_staff(member):
 
         if "discord.gg/" in message.content.lower():
@@ -835,10 +857,6 @@ async def on_message(message):
 
             return
 
-    # -----------------------------
-    # Mention spam
-    # -----------------------------
-
     if settings["antimention"] and not is_staff(member):
 
         if len(message.mentions) >= 8:
@@ -862,10 +880,6 @@ async def on_message(message):
                 pass
 
             return
-
-    # -----------------------------
-    # Anti spam
-    # -----------------------------
 
     if settings["antispam"] and not is_staff(member):
 
@@ -910,10 +924,6 @@ async def on_message(message):
 
             return
 
-    # -----------------------------
-    # XP
-    # -----------------------------
-
     user = profile(
         guild.id,
         member.id
@@ -924,6 +934,7 @@ async def on_message(message):
     if now - user["last_xp"] >= 45:
 
         user["last_xp"] = now
+
         user["xp"] += random.randint(
             10,
             20
@@ -938,14 +949,10 @@ async def on_message(message):
             user["xp"] -= needed
             user["level"] += 1
 
-            channel_id = settings[
-                "level_channel"
-            ]
+            channel_id = settings["level_channel"]
 
             channel = (
-                guild.get_channel(
-                    channel_id
-                )
+                guild.get_channel(channel_id)
                 if channel_id
                 else message.channel
             )
@@ -971,15 +978,32 @@ async def on_message(message):
     name="ping",
     description="Check the bot latency"
 )
-async def ping(interaction):
+async def ping(interaction: discord.Interaction):
 
-    latency = round(
-        bot.latency * 1000
-    )
+    try:
 
-    await interaction.response.send_message(
-        f"🏓 **{latency}ms**"
-    )
+        # Respond immediately so the interaction doesn't expire.
+        await interaction.response.defer()
+
+        latency = round(
+            bot.latency * 1000
+        )
+
+        await interaction.edit_original_response(
+            content=f"🏓 **Pong! {latency}ms**"
+        )
+
+    except discord.NotFound:
+
+        print(
+            "[PING] Interaction expired before response."
+        )
+
+    except discord.HTTPException as error:
+
+        print(
+            f"[PING] Discord API error: {error}"
+        )
 
 
 @bot.tree.command(
@@ -1588,10 +1612,8 @@ async def slowmode(
 )
 async def lock(interaction):
 
-    overwrite = (
-        interaction.channel.overwrites_for(
-            interaction.guild.default_role
-        )
+    overwrite = interaction.channel.overwrites_for(
+        interaction.guild.default_role
     )
 
     overwrite.send_messages = False
@@ -1626,10 +1648,8 @@ async def lock(interaction):
 )
 async def unlock(interaction):
 
-    overwrite = (
-        interaction.channel.overwrites_for(
-            interaction.guild.default_role
-        )
+    overwrite = interaction.channel.overwrites_for(
+        interaction.guild.default_role
     )
 
     overwrite.send_messages = None
@@ -1671,9 +1691,7 @@ async def antispam(
     enabled: bool
 ):
 
-    config(
-        interaction.guild.id
-    )["antispam"] = enabled
+    config(interaction.guild.id)["antispam"] = enabled
 
     await interaction.response.send_message(
         f"🛡️ Anti-spam: "
@@ -1693,9 +1711,7 @@ async def antilink(
     enabled: bool
 ):
 
-    config(
-        interaction.guild.id
-    )["antilink"] = enabled
+    config(interaction.guild.id)["antilink"] = enabled
 
     await interaction.response.send_message(
         f"🔗 Anti-invite: "
@@ -1715,9 +1731,7 @@ async def antimention(
     enabled: bool
 ):
 
-    config(
-        interaction.guild.id
-    )["antimention"] = enabled
+    config(interaction.guild.id)["antimention"] = enabled
 
     await interaction.response.send_message(
         f"📢 Mention protection: "
@@ -1737,9 +1751,7 @@ async def antiraid(
     enabled: bool
 ):
 
-    config(
-        interaction.guild.id
-    )["antiraid"] = enabled
+    config(interaction.guild.id)["antiraid"] = enabled
 
     await interaction.response.send_message(
         f"🚨 Anti-raid: "
@@ -1753,9 +1765,7 @@ async def antiraid(
 )
 async def security(interaction):
 
-    settings = config(
-        interaction.guild.id
-    )
+    settings = config(interaction.guild.id)
 
     embed = discord.Embed(
         title="🛡️ Security",
@@ -1764,41 +1774,25 @@ async def security(interaction):
 
     embed.add_field(
         name="Anti-spam",
-        value=(
-            "ON"
-            if settings["antispam"]
-            else "OFF"
-        ),
+        value="ON" if settings["antispam"] else "OFF",
         inline=True
     )
 
     embed.add_field(
         name="Anti-invite",
-        value=(
-            "ON"
-            if settings["antilink"]
-            else "OFF"
-        ),
+        value="ON" if settings["antilink"] else "OFF",
         inline=True
     )
 
     embed.add_field(
         name="Anti-raid",
-        value=(
-            "ON"
-            if settings["antiraid"]
-            else "OFF"
-        ),
+        value="ON" if settings["antiraid"] else "OFF",
         inline=True
     )
 
     embed.add_field(
         name="Mention protection",
-        value=(
-            "ON"
-            if settings["antimention"]
-            else "OFF"
-        ),
+        value="ON" if settings["antimention"] else "OFF",
         inline=True
     )
 
@@ -1842,9 +1836,8 @@ async def daily(interaction):
 
     if now - user["last_daily"] < 86400:
 
-        remaining = (
-            86400 -
-            (now - user["last_daily"])
+        remaining = 86400 - (
+            now - user["last_daily"]
         )
 
         await interaction.response.send_message(
@@ -1855,10 +1848,7 @@ async def daily(interaction):
 
         return
 
-    reward = random.randint(
-        250,
-        750
-    )
+    reward = random.randint(250, 750)
 
     user["coins"] += reward
     user["last_daily"] = now
@@ -1883,9 +1873,8 @@ async def weekly(interaction):
 
     if now - user["last_weekly"] < 604800:
 
-        remaining = (
-            604800 -
-            (now - user["last_weekly"])
+        remaining = 604800 - (
+            now - user["last_weekly"]
         )
 
         await interaction.response.send_message(
@@ -1896,10 +1885,7 @@ async def weekly(interaction):
 
         return
 
-    reward = random.randint(
-        1500,
-        4000
-    )
+    reward = random.randint(1500, 4000)
 
     user["coins"] += reward
     user["last_weekly"] = now
@@ -1943,11 +1929,7 @@ async def work(interaction):
     ]
 
     job = random.choice(jobs)
-
-    reward = random.randint(
-        50,
-        250
-    )
+    reward = random.randint(50, 250)
 
     user["coins"] += reward
     user["last_work"] = now
@@ -1990,10 +1972,7 @@ async def beg(interaction):
 
         return
 
-    reward = random.randint(
-        10,
-        100
-    )
+    reward = random.randint(10, 100)
 
     user["coins"] += reward
 
@@ -2062,9 +2041,7 @@ async def richest(interaction):
         if guild_id != interaction.guild.id:
             continue
 
-        member = interaction.guild.get_member(
-            user_id
-        )
+        member = interaction.guild.get_member(user_id)
 
         if member:
             results.append(
@@ -2081,10 +2058,7 @@ async def richest(interaction):
 
     lines = []
 
-    for number, (
-        member,
-        coins
-    ) in enumerate(
+    for number, (member, coins) in enumerate(
         results[:10],
         1
     ):
@@ -2143,12 +2117,9 @@ async def leaderboard(interaction):
         if guild_id != interaction.guild.id:
             continue
 
-        member = interaction.guild.get_member(
-            user_id
-        )
+        member = interaction.guild.get_member(user_id)
 
         if member:
-
             results.append(
                 (
                     member,
@@ -2167,11 +2138,7 @@ async def leaderboard(interaction):
 
     lines = []
 
-    for number, (
-        member,
-        level,
-        xp
-    ) in enumerate(
+    for number, (member, level, xp) in enumerate(
         results[:10],
         1
     ):
@@ -2204,10 +2171,7 @@ async def roll(
     sides: app_commands.Range[int, 2, 1000] = 6
 ):
 
-    result = random.randint(
-        1,
-        sides
-    )
+    result = random.randint(1, sides)
 
     await interaction.response.send_message(
         f"🎲 You rolled **{result}**."
@@ -2292,10 +2256,7 @@ async def rate(
     thing: str
 ):
 
-    score = random.randint(
-        0,
-        100
-    )
+    score = random.randint(0, 100)
 
     await interaction.response.send_message(
         f"📊 **{thing}** → **{score}/100**"
@@ -2312,10 +2273,7 @@ async def ship(
     user2: discord.Member
 ):
 
-    score = random.randint(
-        0,
-        100
-    )
+    score = random.randint(0, 100)
 
     await interaction.response.send_message(
         f"💞 **{user1.display_name} + "
@@ -2378,11 +2336,7 @@ async def poll(
     for i in range(len(choices)):
 
         try:
-
-            await message.add_reaction(
-                emojis[i]
-            )
-
+            await message.add_reaction(emojis[i])
         except discord.HTTPException:
             pass
 
@@ -2435,16 +2389,10 @@ async def tempvoice(interaction):
         f"🔊 {interaction.user.display_name}'s room"
     )
 
-    temp_voice_channels.add(
-        channel.id
-    )
+    temp_voice_channels.add(channel.id)
 
     try:
-
-        await interaction.user.move_to(
-            channel
-        )
-
+        await interaction.user.move_to(channel)
     except discord.HTTPException:
         pass
 
@@ -2470,15 +2418,11 @@ async def on_voice_state_update(
         channel_id = before.channel.id
 
         try:
-
             await before.channel.delete()
-
         except discord.HTTPException:
             pass
 
-        temp_voice_channels.discard(
-            channel_id
-        )
+        temp_voice_channels.discard(channel_id)
 
 
 # ============================================================
@@ -2488,9 +2432,7 @@ async def on_voice_state_update(
 class TicketPanelView(discord.ui.View):
 
     def __init__(self):
-        super().__init__(
-            timeout=None
-        )
+        super().__init__(timeout=None)
 
     @discord.ui.button(
         label="Open a ticket",
@@ -2516,24 +2458,18 @@ class TicketPanelView(discord.ui.View):
 
         if existing_id:
 
-            existing = guild.get_channel(
-                existing_id
-            )
+            existing = guild.get_channel(existing_id)
 
             if existing:
 
                 await interaction.response.send_message(
-                    f"You already have "
-                    f"{existing.mention}.",
+                    f"You already have {existing.mention}.",
                     ephemeral=True
                 )
 
                 return
 
-            tickets.pop(
-                key,
-                None
-            )
+            tickets.pop(key, None)
 
         overwrites = {
             guild.default_role:
@@ -2598,9 +2534,7 @@ class TicketPanelView(discord.ui.View):
 class TicketCloseView(discord.ui.View):
 
     def __init__(self):
-        super().__init__(
-            timeout=None
-        )
+        super().__init__(timeout=None)
 
     @discord.ui.button(
         label="Close",
@@ -2627,23 +2561,15 @@ class TicketCloseView(discord.ui.View):
             "🔒 Closing this ticket..."
         )
 
-        for key, channel_id in list(
-            tickets.items()
-        ):
+        for key, channel_id in list(tickets.items()):
 
             if channel_id == interaction.channel.id:
-
-                tickets.pop(
-                    key,
-                    None
-                )
+                tickets.pop(key, None)
 
         await asyncio.sleep(3)
 
         try:
-
             await interaction.channel.delete()
-
         except discord.HTTPException:
             pass
 
@@ -2683,9 +2609,7 @@ async def ticketpanel(interaction):
 class GiveawayView(discord.ui.View):
 
     def __init__(self):
-        super().__init__(
-            timeout=None
-        )
+        super().__init__(timeout=None)
 
     @discord.ui.button(
         label="Enter",
@@ -2699,11 +2623,11 @@ class GiveawayView(discord.ui.View):
         button: discord.ui.Button
     ):
 
-        giveaway = giveaways.get(
+        giveaway_data = giveaways.get(
             interaction.message.id
         )
 
-        if not giveaway:
+        if not giveaway_data:
 
             await interaction.response.send_message(
                 "This giveaway is no longer active.",
@@ -2712,7 +2636,7 @@ class GiveawayView(discord.ui.View):
 
             return
 
-        giveaway["entries"].add(
+        giveaway_data["entries"].add(
             interaction.user.id
         )
 
@@ -2774,13 +2698,12 @@ async def giveaway(
 class VerificationView(discord.ui.View):
 
     def __init__(self):
-        super().__init__(
-            timeout=None
-        )
+        super().__init__(timeout=None)
 
     @discord.ui.button(
         label="Verify",
-        emoji="✓",
+        # Use a standard emoji rather than plain text checkmark.
+        emoji="✅",
         style=discord.ButtonStyle.success,
         custom_id="nbj:verify"
     )
@@ -2803,9 +2726,7 @@ class VerificationView(discord.ui.View):
 
             return
 
-        role = interaction.guild.get_role(
-            role_id
-        )
+        role = interaction.guild.get_role(role_id)
 
         if not role:
 
@@ -2877,9 +2798,7 @@ async def setlog(
     channel: discord.TextChannel
 ):
 
-    config(
-        interaction.guild.id
-    )["log_channel"] = channel.id
+    config(interaction.guild.id)["log_channel"] = channel.id
 
     await interaction.response.send_message(
         f"📋 Logs → {channel.mention}"
@@ -2898,13 +2817,10 @@ async def setwelcome(
     channel: discord.TextChannel
 ):
 
-    config(
-        interaction.guild.id
-    )["welcome_channel"] = channel.id
+    config(interaction.guild.id)["welcome_channel"] = channel.id
 
     await interaction.response.send_message(
-        f"👋 Welcome messages → "
-        f"{channel.mention}"
+        f"👋 Welcome messages → {channel.mention}"
     )
 
 
@@ -2920,13 +2836,10 @@ async def setgoodbye(
     channel: discord.TextChannel
 ):
 
-    config(
-        interaction.guild.id
-    )["goodbye_channel"] = channel.id
+    config(interaction.guild.id)["goodbye_channel"] = channel.id
 
     await interaction.response.send_message(
-        f"👋 Goodbye messages → "
-        f"{channel.mention}"
+        f"👋 Goodbye messages → {channel.mention}"
     )
 
 
@@ -2942,13 +2855,10 @@ async def setautorole(
     role: discord.Role
 ):
 
-    config(
-        interaction.guild.id
-    )["autorole"] = role.id
+    config(interaction.guild.id)["autorole"] = role.id
 
     await interaction.response.send_message(
-        f"New members will receive "
-        f"{role.mention}."
+        f"New members will receive {role.mention}."
     )
 
 
@@ -2964,13 +2874,10 @@ async def setmodrole(
     role: discord.Role
 ):
 
-    config(
-        interaction.guild.id
-    )["mod_role"] = role.id
+    config(interaction.guild.id)["mod_role"] = role.id
 
     await interaction.response.send_message(
-        f"🛡️ Moderator role → "
-        f"{role.mention}"
+        f"🛡️ Moderator role → {role.mention}"
     )
 
 
@@ -2986,13 +2893,10 @@ async def setverificationrole(
     role: discord.Role
 ):
 
-    config(
-        interaction.guild.id
-    )["verification_role"] = role.id
+    config(interaction.guild.id)["verification_role"] = role.id
 
     await interaction.response.send_message(
-        f"✓ Verification role → "
-        f"{role.mention}"
+        f"✅ Verification role → {role.mention}"
     )
 
 
@@ -3008,13 +2912,10 @@ async def setlevelchannel(
     channel: discord.TextChannel
 ):
 
-    config(
-        interaction.guild.id
-    )["level_channel"] = channel.id
+    config(interaction.guild.id)["level_channel"] = channel.id
 
     await interaction.response.send_message(
-        f"✨ Level-up messages → "
-        f"{channel.mention}"
+        f"✨ Level-up messages → {channel.mention}"
     )
 
 
@@ -3093,9 +2994,7 @@ async def say(
         ephemeral=True
     )
 
-    await interaction.channel.send(
-        message
-    )
+    await interaction.channel.send(message)
 
 
 @bot.tree.command(
@@ -3147,9 +3046,7 @@ async def dm(
 
     try:
 
-        await member.send(
-            message
-        )
+        await member.send(message)
 
         await interaction.response.send_message(
             "DM sent.",
@@ -3318,6 +3215,16 @@ async def command_error(
             "required for that."
         )
 
+    elif isinstance(
+        error,
+        app_commands.CommandOnCooldown
+    ):
+
+        message = (
+            f"⏳ Try again in "
+            f"{error.retry_after:.1f} seconds."
+        )
+
     else:
 
         message = (
@@ -3341,8 +3248,17 @@ async def command_error(
                 ephemeral=True
             )
 
-    except discord.HTTPException:
-        pass
+    except discord.NotFound:
+
+        print(
+            "[COMMAND ERROR] Interaction expired."
+        )
+
+    except discord.HTTPException as error:
+
+        print(
+            f"[COMMAND ERROR] Failed to send error: {error}"
+        )
 
 
 # ============================================================
