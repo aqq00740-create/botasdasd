@@ -13,7 +13,7 @@ from discord.ext import commands, tasks
 # ============================================================
 # NORMAL BOT JUNIOR
 # One-file Discord bot
-# External package: discord.py only
+# discord.py only
 # ============================================================
 
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -43,16 +43,14 @@ except ValueError:
 
 intents = discord.Intents.default()
 
-# Required for member join/leave and member information
 intents.members = True
-
-# Required for message-based security/XP features
 intents.message_content = True
 
 
 # ============================================================
-# DATA
-# No database = resets when Railway restarts
+# TEMPORARY DATA
+# No database.
+# Data resets when Railway restarts the bot.
 # ============================================================
 
 guild_data = defaultdict(lambda: {
@@ -217,12 +215,255 @@ async def create_case(
 
 
 # ============================================================
+# HELP MENU
+# IMPORTANT:
+# timeout=None + custom_id = persistent buttons
+# ============================================================
+
+def help_home_embed():
+
+    embed = discord.Embed(
+        title="Normal Bot Junior",
+        description=(
+            "### Command center\n\n"
+
+            "🛡️ **Moderation**\n"
+            "Server management and moderation.\n\n"
+
+            "🚨 **Security**\n"
+            "Spam, invites, mentions and raid detection.\n\n"
+
+            "💰 **Economy**\n"
+            "Coins, rewards and leaderboards.\n\n"
+
+            "🎮 **Fun**\n"
+            "Games and random commands.\n\n"
+
+            "👑 **Owner**\n"
+            "Private bot-owner controls.\n\n"
+
+            "Use the buttons below."
+        ),
+        color=discord.Color.blurple()
+    )
+
+    embed.set_footer(
+        text="Normal Bot Junior"
+    )
+
+    return embed
+
+
+class HelpView(discord.ui.View):
+
+    def __init__(self):
+        super().__init__(
+            timeout=None
+        )
+
+    @discord.ui.button(
+        label="Moderation",
+        emoji="🛡️",
+        style=discord.ButtonStyle.primary,
+        custom_id="nbj:help_moderation"
+    )
+    async def moderation(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        embed = discord.Embed(
+            title="🛡️ Moderation",
+            description=(
+                "`/ban`\n"
+                "`/kick`\n"
+                "`/timeout`\n"
+                "`/untimeout`\n"
+                "`/warn`\n"
+                "`/warnings`\n"
+                "`/clearwarnings`\n"
+                "`/case`\n"
+                "`/clear`\n"
+                "`/slowmode`\n"
+                "`/lock`\n"
+                "`/unlock`"
+            ),
+            color=discord.Color.orange()
+        )
+
+        await interaction.response.edit_message(
+            embed=embed,
+            view=HelpBackView()
+        )
+
+    @discord.ui.button(
+        label="Security",
+        emoji="🚨",
+        style=discord.ButtonStyle.danger,
+        custom_id="nbj:help_security"
+    )
+    async def security(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        embed = discord.Embed(
+            title="🚨 Security",
+            description=(
+                "`/antispam`\n"
+                "`/antilink`\n"
+                "`/antimention`\n"
+                "`/antiraid`\n"
+                "`/security`"
+            ),
+            color=discord.Color.red()
+        )
+
+        await interaction.response.edit_message(
+            embed=embed,
+            view=HelpBackView()
+        )
+
+    @discord.ui.button(
+        label="Economy",
+        emoji="💰",
+        style=discord.ButtonStyle.success,
+        custom_id="nbj:help_economy"
+    )
+    async def economy(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        embed = discord.Embed(
+            title="💰 Economy",
+            description=(
+                "`/balance`\n"
+                "`/daily`\n"
+                "`/weekly`\n"
+                "`/work`\n"
+                "`/beg`\n"
+                "`/give`\n"
+                "`/richest`"
+            ),
+            color=discord.Color.green()
+        )
+
+        await interaction.response.edit_message(
+            embed=embed,
+            view=HelpBackView()
+        )
+
+    @discord.ui.button(
+        label="Fun",
+        emoji="🎮",
+        style=discord.ButtonStyle.secondary,
+        custom_id="nbj:help_fun"
+    )
+    async def fun(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        embed = discord.Embed(
+            title="🎮 Fun",
+            description=(
+                "`/roll`\n"
+                "`/coinflip`\n"
+                "`/8ball`\n"
+                "`/choose`\n"
+                "`/rate`\n"
+                "`/ship`\n"
+                "`/poll`"
+            ),
+            color=discord.Color.blurple()
+        )
+
+        await interaction.response.edit_message(
+            embed=embed,
+            view=HelpBackView()
+        )
+
+    @discord.ui.button(
+        label="Owner",
+        emoji="👑",
+        style=discord.ButtonStyle.secondary,
+        custom_id="nbj:help_owner"
+    )
+    async def owner(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        if not is_owner(interaction.user):
+
+            await interaction.response.send_message(
+                "🔒 This section is only available to the bot owner.",
+                ephemeral=True
+            )
+
+            return
+
+        embed = discord.Embed(
+            title="👑 Owner",
+            description=(
+                "Private bot-owner controls.\n\n"
+                "`/owner`\n"
+                "`/servers`\n"
+                "`/say`\n"
+                "`/announce`\n"
+                "`/dm`\n"
+                "`/setstatus`\n"
+                "`/setactivity`\n"
+                "`/shutdown`"
+            ),
+            color=discord.Color.gold()
+        )
+
+        await interaction.response.edit_message(
+            embed=embed,
+            view=HelpBackView()
+        )
+
+
+class HelpBackView(discord.ui.View):
+
+    def __init__(self):
+        super().__init__(
+            timeout=None
+        )
+
+    @discord.ui.button(
+        label="Back",
+        emoji="←",
+        style=discord.ButtonStyle.secondary,
+        custom_id="nbj:help_back"
+    )
+    async def back(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        await interaction.response.edit_message(
+            embed=help_home_embed(),
+            view=HelpView()
+        )
+
+
+# ============================================================
 # BOT
 # ============================================================
 
 class NormalBotJunior(commands.Bot):
 
     def __init__(self):
+
         super().__init__(
             command_prefix="!",
             intents=intents,
@@ -233,20 +474,32 @@ class NormalBotJunior(commands.Bot):
 
     async def setup_hook(self):
 
-        # Register persistent buttons BEFORE connecting.
+        print("Registering persistent views...")
+
+        # Ticket buttons
         self.add_view(TicketPanelView())
         self.add_view(TicketCloseView())
+
+        # Verification button
         self.add_view(VerificationView())
+
+        # Giveaway button
         self.add_view(GiveawayView())
 
-        # Sync slash commands.
+        # Help menu buttons
+        self.add_view(HelpView())
+        self.add_view(HelpBackView())
+
+        print("Persistent views registered.")
+
+        # Sync slash commands
         synced = await self.tree.sync()
 
         print(
             f"Synced {len(synced)} slash commands."
         )
 
-        # Start background tasks exactly once.
+        # Start background tasks once
         if not self.started_tasks:
 
             self.reminder_loop.start()
@@ -274,18 +527,23 @@ class NormalBotJunior(commands.Bot):
             if channel:
 
                 try:
+
                     await channel.send(
                         f"⏰ <@{reminder['user_id']}> "
                         f"**Reminder:** "
                         f"{reminder['message']}"
                     )
+
                 except discord.HTTPException:
                     pass
 
             expired.append(reminder_id)
 
         for reminder_id in expired:
-            reminders.pop(reminder_id, None)
+            reminders.pop(
+                reminder_id,
+                None
+            )
 
     @tasks.loop(seconds=5)
     async def giveaway_loop(self):
@@ -344,7 +602,11 @@ class NormalBotJunior(commands.Bot):
             finished.append(message_id)
 
         for message_id in finished:
-            giveaways.pop(message_id, None)
+
+            giveaways.pop(
+                message_id,
+                None
+            )
 
 
 bot = NormalBotJunior()
@@ -364,12 +626,13 @@ async def on_ready():
     print(f"Logged in as: {bot.user}")
     print(f"Bot ID: {bot.user.id}")
     print(f"Servers: {len(bot.guilds)}")
+    print(f"Owner ID: {OWNER_ID}")
     print("=" * 55)
     print()
 
 
 # ============================================================
-# MEMBER EVENTS
+# MEMBER JOIN
 # ============================================================
 
 @bot.event
@@ -379,7 +642,7 @@ async def on_member_join(member):
     settings = config(guild.id)
 
     # -----------------------------
-    # Anti-raid detection
+    # Anti-raid
     # -----------------------------
 
     now = time.time()
@@ -408,15 +671,19 @@ async def on_member_join(member):
 
     if role_id:
 
-        role = guild.get_role(role_id)
+        role = guild.get_role(
+            role_id
+        )
 
         if role:
 
             try:
+
                 await member.add_roles(
                     role,
                     reason="Normal Bot Junior autorole"
                 )
+
             except discord.HTTPException:
                 pass
 
@@ -459,7 +726,11 @@ async def on_member_join(member):
             )
 
             try:
-                await channel.send(message)
+
+                await channel.send(
+                    message
+                )
+
             except discord.HTTPException:
                 pass
 
@@ -468,6 +739,10 @@ async def on_member_join(member):
         f"📥 **{member}** joined."
     )
 
+
+# ============================================================
+# MEMBER LEAVE
+# ============================================================
 
 @bot.event
 async def on_member_remove(member):
@@ -500,7 +775,11 @@ async def on_member_remove(member):
             )
 
             try:
-                await channel.send(message)
+
+                await channel.send(
+                    message
+                )
+
             except discord.HTTPException:
                 pass
 
@@ -536,6 +815,7 @@ async def on_message(message):
         if "discord.gg/" in message.content.lower():
 
             try:
+
                 await message.delete()
 
                 await message.channel.send(
@@ -564,6 +844,7 @@ async def on_message(message):
         if len(message.mentions) >= 8:
 
             try:
+
                 await message.delete()
 
                 await member.timeout(
@@ -572,8 +853,8 @@ async def on_message(message):
                 )
 
                 await message.channel.send(
-                    f"🛡️ {member.mention} was timed "
-                    f"out for mention spam.",
+                    f"🛡️ {member.mention} was "
+                    f"timed out for mention spam.",
                     delete_after=6
                 )
 
@@ -588,7 +869,11 @@ async def on_message(message):
 
     if settings["antispam"] and not is_staff(member):
 
-        key = (guild.id, member.id)
+        key = (
+            guild.id,
+            member.id
+        )
+
         now = time.time()
 
         tracker = message_tracker[key]
@@ -639,7 +924,10 @@ async def on_message(message):
     if now - user["last_xp"] >= 45:
 
         user["last_xp"] = now
-        user["xp"] += random.randint(10, 20)
+        user["xp"] += random.randint(
+            10,
+            20
+        )
 
         needed = 100 + (
             user["level"] * 50
@@ -655,7 +943,9 @@ async def on_message(message):
             ]
 
             channel = (
-                guild.get_channel(channel_id)
+                guild.get_channel(
+                    channel_id
+                )
                 if channel_id
                 else message.channel
             )
@@ -663,16 +953,18 @@ async def on_message(message):
             if channel:
 
                 try:
+
                     await channel.send(
                         f"✨ {member.mention} reached "
                         f"**Level {user['level']}**!"
                     )
+
                 except discord.HTTPException:
                     pass
 
 
 # ============================================================
-# BASIC COMMANDS
+# BASIC
 # ============================================================
 
 @bot.tree.command(
@@ -1072,7 +1364,18 @@ async def untimeout(
     member: discord.Member
 ):
 
-    await member.timeout(None)
+    try:
+
+        await member.timeout(None)
+
+    except discord.Forbidden:
+
+        await interaction.response.send_message(
+            "❌ I can't remove that timeout.",
+            ephemeral=True
+        )
+
+        return
 
     await interaction.response.send_message(
         f"🔓 Removed timeout from "
@@ -1256,9 +1559,20 @@ async def slowmode(
     seconds: app_commands.Range[int, 0, 21600]
 ):
 
-    await interaction.channel.edit(
-        slowmode_delay=seconds
-    )
+    try:
+
+        await interaction.channel.edit(
+            slowmode_delay=seconds
+        )
+
+    except discord.Forbidden:
+
+        await interaction.response.send_message(
+            "❌ I don't have permission to change slowmode.",
+            ephemeral=True
+        )
+
+        return
 
     await interaction.response.send_message(
         f"🐌 Slowmode: **{seconds}s**"
@@ -1282,10 +1596,21 @@ async def lock(interaction):
 
     overwrite.send_messages = False
 
-    await interaction.channel.set_permissions(
-        interaction.guild.default_role,
-        overwrite=overwrite
-    )
+    try:
+
+        await interaction.channel.set_permissions(
+            interaction.guild.default_role,
+            overwrite=overwrite
+        )
+
+    except discord.Forbidden:
+
+        await interaction.response.send_message(
+            "❌ I can't lock this channel.",
+            ephemeral=True
+        )
+
+        return
 
     await interaction.response.send_message(
         "🔒 Channel locked."
@@ -1309,10 +1634,21 @@ async def unlock(interaction):
 
     overwrite.send_messages = None
 
-    await interaction.channel.set_permissions(
-        interaction.guild.default_role,
-        overwrite=overwrite
-    )
+    try:
+
+        await interaction.channel.set_permissions(
+            interaction.guild.default_role,
+            overwrite=overwrite
+        )
+
+    except discord.Forbidden:
+
+        await interaction.response.send_message(
+            "❌ I can't unlock this channel.",
+            ephemeral=True
+        )
+
+        return
 
     await interaction.response.send_message(
         "🔓 Channel unlocked."
@@ -1428,17 +1764,32 @@ async def security(interaction):
 
     embed.add_field(
         name="Anti-spam",
-        value="ON" if settings["antispam"] else "OFF"
+        value=(
+            "ON"
+            if settings["antispam"]
+            else "OFF"
+        ),
+        inline=True
     )
 
     embed.add_field(
         name="Anti-invite",
-        value="ON" if settings["antilink"] else "OFF"
+        value=(
+            "ON"
+            if settings["antilink"]
+            else "OFF"
+        ),
+        inline=True
     )
 
     embed.add_field(
         name="Anti-raid",
-        value="ON" if settings["antiraid"] else "OFF"
+        value=(
+            "ON"
+            if settings["antiraid"]
+            else "OFF"
+        ),
+        inline=True
     )
 
     embed.add_field(
@@ -1447,7 +1798,8 @@ async def security(interaction):
             "ON"
             if settings["antimention"]
             else "OFF"
-        )
+        ),
+        inline=True
     )
 
     await interaction.response.send_message(
@@ -1729,7 +2081,10 @@ async def richest(interaction):
 
     lines = []
 
-    for number, (member, coins) in enumerate(
+    for number, (
+        member,
+        coins
+    ) in enumerate(
         results[:10],
         1
     ):
@@ -1793,6 +2148,7 @@ async def leaderboard(interaction):
         )
 
         if member:
+
             results.append(
                 (
                     member,
@@ -2022,9 +2378,11 @@ async def poll(
     for i in range(len(choices)):
 
         try:
+
             await message.add_reaction(
                 emojis[i]
             )
+
         except discord.HTTPException:
             pass
 
@@ -2082,9 +2440,11 @@ async def tempvoice(interaction):
     )
 
     try:
+
         await interaction.user.move_to(
             channel
         )
+
     except discord.HTTPException:
         pass
 
@@ -2110,7 +2470,9 @@ async def on_voice_state_update(
         channel_id = before.channel.id
 
         try:
+
             await before.channel.delete()
+
         except discord.HTTPException:
             pass
 
@@ -2120,7 +2482,7 @@ async def on_voice_state_update(
 
 
 # ============================================================
-# TICKET SYSTEM
+# TICKETS
 # ============================================================
 
 class TicketPanelView(discord.ui.View):
@@ -2134,7 +2496,7 @@ class TicketPanelView(discord.ui.View):
         label="Open a ticket",
         emoji="🎫",
         style=discord.ButtonStyle.primary,
-        custom_id="normal_bot_junior:ticket_open"
+        custom_id="nbj:ticket_open"
     )
     async def open_ticket(
         self,
@@ -2195,10 +2557,21 @@ class TicketPanelView(discord.ui.View):
                 )
         }
 
-        channel = await guild.create_text_channel(
-            f"ticket-{user.name}",
-            overwrites=overwrites
-        )
+        try:
+
+            channel = await guild.create_text_channel(
+                f"ticket-{user.name}",
+                overwrites=overwrites
+            )
+
+        except discord.Forbidden:
+
+            await interaction.response.send_message(
+                "❌ I can't create the ticket channel.",
+                ephemeral=True
+            )
+
+            return
 
         tickets[key] = channel.id
 
@@ -2233,7 +2606,7 @@ class TicketCloseView(discord.ui.View):
         label="Close",
         emoji="🔒",
         style=discord.ButtonStyle.danger,
-        custom_id="normal_bot_junior:ticket_close"
+        custom_id="nbj:ticket_close"
     )
     async def close_ticket(
         self,
@@ -2259,6 +2632,7 @@ class TicketCloseView(discord.ui.View):
         ):
 
             if channel_id == interaction.channel.id:
+
                 tickets.pop(
                     key,
                     None
@@ -2267,7 +2641,9 @@ class TicketCloseView(discord.ui.View):
         await asyncio.sleep(3)
 
         try:
+
             await interaction.channel.delete()
+
         except discord.HTTPException:
             pass
 
@@ -2315,7 +2691,7 @@ class GiveawayView(discord.ui.View):
         label="Enter",
         emoji="🎉",
         style=discord.ButtonStyle.success,
-        custom_id="normal_bot_junior:giveaway_enter"
+        custom_id="nbj:giveaway_enter"
     )
     async def enter(
         self,
@@ -2406,7 +2782,7 @@ class VerificationView(discord.ui.View):
         label="Verify",
         emoji="✓",
         style=discord.ButtonStyle.success,
-        custom_id="normal_bot_junior:verify"
+        custom_id="nbj:verify"
     )
     async def verify(
         self,
@@ -2771,7 +3147,9 @@ async def dm(
 
     try:
 
-        await member.send(message)
+        await member.send(
+            message
+        )
 
         await interaction.response.send_message(
             "DM sent.",
@@ -2891,206 +3269,8 @@ async def shutdown(interaction):
 
 
 # ============================================================
-# HELP MENU
+# HELP COMMAND
 # ============================================================
-
-class HelpView(discord.ui.View):
-
-    def __init__(self):
-        super().__init__(
-            timeout=180
-        )
-
-    @discord.ui.button(
-        label="Moderation",
-        emoji="🛡️",
-        style=discord.ButtonStyle.primary
-    )
-    async def moderation(
-        self,
-        interaction,
-        button
-    ):
-
-        await interaction.response.edit_message(
-            embed=discord.Embed(
-                title="🛡️ Moderation",
-                description=(
-                    "`/ban`\n"
-                    "`/kick`\n"
-                    "`/timeout`\n"
-                    "`/untimeout`\n"
-                    "`/warn`\n"
-                    "`/warnings`\n"
-                    "`/clearwarnings`\n"
-                    "`/case`\n"
-                    "`/clear`\n"
-                    "`/slowmode`\n"
-                    "`/lock`\n"
-                    "`/unlock`"
-                ),
-                color=discord.Color.orange()
-            ),
-            view=HelpBackView()
-        )
-
-    @discord.ui.button(
-        label="Security",
-        emoji="🚨",
-        style=discord.ButtonStyle.danger
-    )
-    async def security(
-        self,
-        interaction,
-        button
-    ):
-
-        await interaction.response.edit_message(
-            embed=discord.Embed(
-                title="🚨 Security",
-                description=(
-                    "`/antispam`\n"
-                    "`/antilink`\n"
-                    "`/antimention`\n"
-                    "`/antiraid`\n"
-                    "`/security`"
-                ),
-                color=discord.Color.red()
-            ),
-            view=HelpBackView()
-        )
-
-    @discord.ui.button(
-        label="Economy",
-        emoji="💰",
-        style=discord.ButtonStyle.success
-    )
-    async def economy(
-        self,
-        interaction,
-        button
-    ):
-
-        await interaction.response.edit_message(
-            embed=discord.Embed(
-                title="💰 Economy",
-                description=(
-                    "`/balance`\n"
-                    "`/daily`\n"
-                    "`/weekly`\n"
-                    "`/work`\n"
-                    "`/beg`\n"
-                    "`/give`\n"
-                    "`/richest`"
-                ),
-                color=discord.Color.green()
-            ),
-            view=HelpBackView()
-        )
-
-    @discord.ui.button(
-        label="Fun",
-        emoji="🎮",
-        style=discord.ButtonStyle.secondary
-    )
-    async def fun(
-        self,
-        interaction,
-        button
-    ):
-
-        await interaction.response.edit_message(
-            embed=discord.Embed(
-                title="🎮 Fun",
-                description=(
-                    "`/roll`\n"
-                    "`/coinflip`\n"
-                    "`/8ball`\n"
-                    "`/choose`\n"
-                    "`/rate`\n"
-                    "`/ship`"
-                ),
-                color=discord.Color.blurple()
-            ),
-            view=HelpBackView()
-        )
-
-    @discord.ui.button(
-        label="Owner",
-        emoji="👑",
-        style=discord.ButtonStyle.secondary
-    )
-    async def owner(
-        self,
-        interaction,
-        button
-    ):
-
-        await interaction.response.edit_message(
-            embed=discord.Embed(
-                title="👑 Owner",
-                description=(
-                    "Private commands.\n\n"
-                    "`/owner`\n"
-                    "`/servers`\n"
-                    "`/say`\n"
-                    "`/announce`\n"
-                    "`/dm`\n"
-                    "`/setstatus`\n"
-                    "`/setactivity`\n"
-                    "`/shutdown`"
-                ),
-                color=discord.Color.gold()
-            ),
-            view=HelpBackView()
-        )
-
-
-class HelpBackView(discord.ui.View):
-
-    def __init__(self):
-        super().__init__(
-            timeout=180
-        )
-
-    @discord.ui.button(
-        label="Back",
-        emoji="←",
-        style=discord.ButtonStyle.secondary
-    )
-    async def back(
-        self,
-        interaction,
-        button
-    ):
-
-        await interaction.response.edit_message(
-            embed=help_home_embed(),
-            view=HelpView()
-        )
-
-
-def help_home_embed():
-
-    return discord.Embed(
-        title="Normal Bot Junior",
-        description=(
-            "### Command center\n\n"
-            "🛡️ **Moderation**\n"
-            "Server management and moderation.\n\n"
-            "🚨 **Security**\n"
-            "Spam, invites, mentions and raid detection.\n\n"
-            "💰 **Economy**\n"
-            "Coins, rewards and leaderboards.\n\n"
-            "🎮 **Fun**\n"
-            "Games and random commands.\n\n"
-            "👑 **Owner**\n"
-            "Private bot-owner controls.\n\n"
-            "Use the buttons below."
-        ),
-        color=discord.Color.blurple()
-    )
-
 
 @bot.tree.command(
     name="help",
@@ -3105,7 +3285,7 @@ async def help_command(interaction):
 
 
 # ============================================================
-# ERROR HANDLER
+# COMMAND ERROR HANDLER
 # ============================================================
 
 @bot.tree.error
@@ -3136,15 +3316,6 @@ async def command_error(
         message = (
             "❌ I don't have the permissions "
             "required for that."
-        )
-
-    elif isinstance(
-        error,
-        app_commands.CommandOnCooldown
-    ):
-
-        message = (
-            "⏳ That command is on cooldown."
         )
 
     else:
@@ -3180,6 +3351,8 @@ async def command_error(
 
 if __name__ == "__main__":
 
-    print("Starting Normal Bot Junior...")
+    print(
+        "Starting Normal Bot Junior..."
+    )
 
     bot.run(TOKEN)
